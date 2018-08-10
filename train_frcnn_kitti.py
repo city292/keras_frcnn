@@ -17,7 +17,7 @@ from keras_frcnn import losses as losses_fn
 import keras_frcnn.roi_helpers as roi_helpers
 from keras.utils import generic_utils
 import os
-from keras_frcnn import resnet as nn
+from keras_frcnn import vgg as nn
 from keras_frcnn.simple_parser import get_data
 
 
@@ -33,7 +33,7 @@ def train_kitti():
 
     # TODO: the only file should to be change for other data to train
     cfg.model_path = './model/kitti_frcnn_last.hdf5'
-    cfg.simple_label_file = 'kitti_simple_label.txt'
+    cfg.simple_label_file = 'label.txt'
 
     all_images, classes_count, class_mapping = get_data(cfg.simple_label_file)
 
@@ -87,6 +87,13 @@ def train_kitti():
 
     # this is a model that holds both the RPN and the classifier, used to load/save weights for the models
     model_all = Model([img_input, roi_input], rpn[:2] + classifier)
+    model_all.summary()
+    from keras.utils import plot_model
+    os.environ['PATH'] = os.environ['PATH'] + r';C:\Program Files (x86)\Graphviz2.38\bin;'
+
+    plot_model(model_all, 'model_all.png', show_layer_names=True, show_shapes=True)
+    plot_model(model_classifier, 'model_classifier.png', show_layer_names=True, show_shapes=True)
+    plot_model(model_rpn, 'model_rpn.png', show_layer_names=True, show_shapes=True)
 
     try:
         print('loading weights from {}'.format(cfg.base_net_weights))
