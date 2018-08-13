@@ -305,14 +305,43 @@ def get_anchor_gt(all_img_data, class_count, C, img_length_calc_function, backen
 				(resized_width, resized_height) = get_new_img_size(width, height, C.im_size)
 				#	print(resized_width, resized_height,width, height, C.im_size)
 
-				# resize the image so that smalles side is length = 600px
-				x_img = cv2.resize(x_img, (resized_width, resized_height), interpolation=cv2.INTER_CUBIC)
-
-				try:
-					y_rpn_cls, y_rpn_regr = calc_rpn(C, img_data_aug, width, height, resized_width, resized_height, img_length_calc_function)
-				except:
+				img_data_reclip = img_data.copy()
+				img_data_reclip['height'] = C.im_size
+				img_data_reclip['width'] = C.im_size
+				xoff = random.randint(0, width - C.im_size)
+				yoff = random.randint(0, height - C.im_size)
+				for bbox in img_data_reclip['bboxes']:
+					bbox['x1'] -= xoff
+					bbox['x2'] -= xoff
+					bbox['y1'] -= yoff
+					bbox['y2'] -= yoff
+				ind = 0
+				while True:
+					if ind == len(img_data_reclip['bboxes']):
+						break
+					if img_data_reclip['bboxes'][ind]['x1'] < 0 or img_data_reclip['bboxes'][ind]['y1'] < 0 or \
+							img_data_reclip['bboxes'][ind]['x2'] > C.im_size or img_data_reclip['bboxes'][ind][
+						'y2'] > C.im_size:
+						img_data_reclip['bboxes'].remove(img_data_reclip['bboxes'][ind])
+					else:
+						ind += 1
+				if len(img_data_reclip['bboxes']) == 0:
 					continue
 
+
+				# resize the image so that smalles side is length = 600px
+
+				#	x_img = cv2.resize(x_img, (resized_width, resized_height), interpolation=cv2.INTER_CUBIC)
+
+				#	img_data_reclip['bboxes']
+
+				try:
+					#	y_rpn_cls, y_rpn_regr = calc_rpn(C, img_data_aug, width, height, resized_width, resized_height, img_length_calc_function)
+					y_rpn_cls, y_rpn_regr = calc_rpn(C, img_data_aug, C.im_size, C.im_size, C.im_size, C.im_size,
+													 img_length_calc_function)
+				except:
+					continue
+				x_img = x_img[xoff:xoff + C.im_size, yoff:yoff + C.im_size, :]
 				# Zero-center by mean pixel, and preprocess image
 
 				x_img = x_img[:,:, (2, 1, 0)]  # BGR -> RGB
