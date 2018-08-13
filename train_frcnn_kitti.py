@@ -6,6 +6,9 @@ import random
 import pprint
 import sys
 import time
+import os
+
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 import numpy as np
 import pickle
 from keras import backend as K
@@ -16,7 +19,7 @@ from keras_frcnn import config, data_generators
 from keras_frcnn import losses as losses_fn
 import keras_frcnn.roi_helpers as roi_helpers
 from keras.utils import generic_utils
-import os
+
 from keras_frcnn import vgg as nn
 from keras_frcnn.simple_parser import get_data
 
@@ -30,10 +33,11 @@ def train_kitti():
     cfg.rot_90 = True
     cfg.num_rois = 32
     cfg.base_net_weights = os.path.join('./model/', nn.get_weight_path())
+    # cfg.base_net_weights=r''
 
     # TODO: the only file should to be change for other data to train
     cfg.model_path = './model/kitti_frcnn_last.hdf5'
-    cfg.simple_label_file = 'label.txt'
+    cfg.simple_label_file = r'C:\gwplane/sub_win.csv'
 
     all_images, classes_count, class_mapping = get_data(cfg.simple_label_file)
 
@@ -87,7 +91,7 @@ def train_kitti():
 
     # this is a model that holds both the RPN and the classifier, used to load/save weights for the models
     model_all = Model([img_input, roi_input], rpn[:2] + classifier)
-    model_all.summary()
+    # model_all.summary()
     from keras.utils import plot_model
     os.environ['PATH'] = os.environ['PATH'] + r';C:\Program Files (x86)\Graphviz2.38\bin;'
 
@@ -136,6 +140,7 @@ def train_kitti():
 
         while True:
             try:
+                print(1)
 
                 if len(rpn_accuracy_rpn_monitor) == epoch_length and cfg.verbose:
                     mean_overlapping_bboxes = float(sum(rpn_accuracy_rpn_monitor)) / len(rpn_accuracy_rpn_monitor)
@@ -148,6 +153,7 @@ def train_kitti():
                               ' the ground truth boxes. Check RPN settings or keep training.')
 
                 X, Y, img_data = next(data_gen_train)
+
 
                 loss_rpn = model_rpn.train_on_batch(X, Y)
 

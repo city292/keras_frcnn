@@ -81,7 +81,8 @@ def calc_rpn(C, img_data, width, height, resized_width, resized_height, img_leng
 	downscale = float(C.rpn_stride)
 	anchor_sizes = C.anchor_box_scales
 	anchor_ratios = C.anchor_box_ratios
-	num_anchors = len(anchor_sizes) * len(anchor_ratios)	
+	num_anchors = len(anchor_sizes) * len(anchor_ratios)
+
 
 	# calculate the output map size based on the network architecture
 
@@ -90,9 +91,9 @@ def calc_rpn(C, img_data, width, height, resized_width, resized_height, img_leng
 	n_anchratios = len(anchor_ratios)
 	
 	# initialise empty output objectives
-	y_rpn_overlap = np.zeros((output_height, output_width, num_anchors))
-	y_is_box_valid = np.zeros((output_height, output_width, num_anchors))
-	y_rpn_regr = np.zeros((output_height, output_width, num_anchors * 4))
+	y_rpn_overlap = np.zeros((int(output_height), int(output_width), num_anchors))
+	y_is_box_valid = np.zeros((int(output_height), int(output_width), num_anchors))
+	y_rpn_regr = np.zeros((int(output_height), int(output_width), num_anchors * 4))
 
 	num_bboxes = len(img_data['bboxes'])
 
@@ -116,9 +117,9 @@ def calc_rpn(C, img_data, width, height, resized_width, resized_height, img_leng
 	for anchor_size_idx in range(len(anchor_sizes)):
 		for anchor_ratio_idx in range(n_anchratios):
 			anchor_x = anchor_sizes[anchor_size_idx] * anchor_ratios[anchor_ratio_idx][0]
-			anchor_y = anchor_sizes[anchor_size_idx] * anchor_ratios[anchor_ratio_idx][1]	
-			
-			for ix in range(output_width):					
+			anchor_y = anchor_sizes[anchor_size_idx] * anchor_ratios[anchor_ratio_idx][1]
+
+			for ix in range(int(output_width)):
 				# x-coordinates of the current anchor box	
 				x1_anc = downscale * (ix + 0.5) - anchor_x / 2
 				x2_anc = downscale * (ix + 0.5) + anchor_x / 2	
@@ -126,8 +127,8 @@ def calc_rpn(C, img_data, width, height, resized_width, resized_height, img_leng
 				# ignore boxes that go across image boundaries					
 				if x1_anc < 0 or x2_anc > resized_width:
 					continue
-					
-				for jy in range(output_height):
+
+				for jy in range(int(output_height)):
 
 					# y-coordinates of the current anchor box
 					y1_anc = downscale * (jy + 0.5) - anchor_y / 2
@@ -302,6 +303,7 @@ def get_anchor_gt(all_img_data, class_count, C, img_length_calc_function, backen
 
 				# get image dimensions for resizing
 				(resized_width, resized_height) = get_new_img_size(width, height, C.im_size)
+				#	print(resized_width, resized_height,width, height, C.im_size)
 
 				# resize the image so that smalles side is length = 600px
 				x_img = cv2.resize(x_img, (resized_width, resized_height), interpolation=cv2.INTER_CUBIC)
@@ -324,7 +326,7 @@ def get_anchor_gt(all_img_data, class_count, C, img_length_calc_function, backen
 				x_img = np.expand_dims(x_img, axis=0)
 
 				y_rpn_regr[:, y_rpn_regr.shape[1]//2:, :, :] *= C.std_scaling
-
+				print(4)
 				if backend == 'tf':
 					x_img = np.transpose(x_img, (0, 2, 3, 1))
 					y_rpn_cls = np.transpose(y_rpn_cls, (0, 2, 3, 1))

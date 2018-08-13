@@ -5,7 +5,7 @@ class Config:
     def __init__(self):
         self.verbose = True
 
-        self.network = 'resnet50'
+        self.network = 'vgg16'
 
         # setting for data augmentation
         self.use_horizontal_flips = False
@@ -19,8 +19,8 @@ class Config:
         self.anchor_box_ratios = [[1, 1], [1, 2], [2, 1]]
 
         # size to resize the smallest side of the image
-        self.im_size = 600
 
+        self.im_size = 654
         # image channel-wise mean to subtract
         self.img_channel_mean = [103.939, 116.779, 123.68]
         self.img_scaling_factor = 1.0
