@@ -117,7 +117,7 @@ def train_kitti():
                              metrics={'dense_class_{}'.format(len(classes_count)): 'accuracy'})
     model_all.compile(optimizer='sgd', loss='mae')
 
-    epoch_length = 1000
+    epoch_length = 10
     num_epochs = int(cfg.num_epochs)
     iter_num = 0
 
@@ -140,7 +140,6 @@ def train_kitti():
 
         while True:
             try:
-                print(1)
 
                 if len(rpn_accuracy_rpn_monitor) == epoch_length and cfg.verbose:
                     mean_overlapping_bboxes = float(sum(rpn_accuracy_rpn_monitor)) / len(rpn_accuracy_rpn_monitor)
