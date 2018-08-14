@@ -327,6 +327,7 @@ def get_anchor_gt(all_img_data, class_count, C, img_length_calc_function, backen
 						ind += 1
 				if len(img_data_reclip['bboxes']) == 0:
 					continue
+				print(len(img_data_reclip['bboxes']))
 
 
 				# resize the image so that smalles side is length = 600px
@@ -355,7 +356,7 @@ def get_anchor_gt(all_img_data, class_count, C, img_length_calc_function, backen
 				x_img = np.expand_dims(x_img, axis=0)
 
 				y_rpn_regr[:, y_rpn_regr.shape[1]//2:, :, :] *= C.std_scaling
-				print(4)
+
 				if backend == 'tf':
 					x_img = np.transpose(x_img, (0, 2, 3, 1))
 					y_rpn_cls = np.transpose(y_rpn_cls, (0, 2, 3, 1))

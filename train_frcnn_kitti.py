@@ -8,7 +8,7 @@ import sys
 import time
 import os
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+os.environ['CUDA_VISIBLE_DEVICES'] = '3'
 import numpy as np
 import pickle
 from keras import backend as K
@@ -22,6 +22,12 @@ from keras.utils import generic_utils
 
 from keras_frcnn import vgg as nn
 from keras_frcnn.simple_parser import get_data
+import tensorflow
+from keras.backend.tensorflow_backend import set_session
+
+configtf = tensorflow.ConfigProto()
+configtf.gpu_options.allow_growth = True
+set_session(tensorflow.Session(config=configtf))
 
 
 def train_kitti():
@@ -36,8 +42,8 @@ def train_kitti():
     # cfg.base_net_weights=r''
 
     # TODO: the only file should to be change for other data to train
-    cfg.model_path = './model/kitti_frcnn_last.hdf5'
-    cfg.simple_label_file = r'C:\gwplane/sub_win.csv'
+    cfg.model_path = '/media/private/Ci/log/plane/frcnn/model/kitti_frcnn_last.hdf5'
+    cfg.simple_label_file = '/media/public/GEOWAY/plane/plane.csv'
 
     all_images, classes_count, class_mapping = get_data(cfg.simple_label_file)
 
@@ -98,7 +104,7 @@ def train_kitti():
     plot_model(model_all, 'model_all.png', show_layer_names=True, show_shapes=True)
     plot_model(model_classifier, 'model_classifier.png', show_layer_names=True, show_shapes=True)
     plot_model(model_rpn, 'model_rpn.png', show_layer_names=True, show_shapes=True)
-
+    '''
     try:
         print('loading weights from {}'.format(cfg.base_net_weights))
         model_rpn.load_weights(cfg.model_path, by_name=True)
@@ -107,6 +113,7 @@ def train_kitti():
         print(e)
         print('Could not load pretrained model weights. Weights can be found in the keras application folder '
               'https://github.com/fchollet/keras/tree/master/keras/applications')
+    '''
 
     optimizer = Adam(lr=1e-5)
     optimizer_classifier = Adam(lr=1e-5)
