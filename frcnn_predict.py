@@ -4,6 +4,7 @@ import cv2
 import numpy as np
 import pickle
 import time
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 from keras_frcnn import config
 from keras import backend as K
 from keras.layers import Input
@@ -11,8 +12,13 @@ from keras.models import Model
 from keras_frcnn import roi_helpers
 import argparse
 import os
-import keras_frcnn.resnet as nn
+import keras_frcnn.vgg as nn
 from keras_frcnn.visualize import draw_boxes_and_label_on_image_cv2
+import tensorflow
+from keras.backend.tensorflow_backend import set_session
+configtf = tensorflow.ConfigProto()
+configtf.gpu_options.allow_growth = True
+set_session(tensorflow.Session(config=configtf))
 
 
 def format_img_size(img, cfg):
@@ -132,7 +138,7 @@ def predict_single_image(img_path, model_rpn, model_classifier_only, cfg, class_
     img = draw_boxes_and_label_on_image_cv2(img, class_mapping, boxes)
     print('Elapsed time = {}'.format(time.time() - st))
     cv2.imshow('image', img)
-    result_path = './results_images/{}.png'.format(os.path.basename(img_path).split('.')[0])
+    result_path = '/media/private/Ci/log/plane/frcnn/{}.png'.format(os.path.basename(img_path).split('.')[0])
     print('result saved into ', result_path)
     cv2.imwrite(result_path, img)
     cv2.waitKey(0)
@@ -140,7 +146,7 @@ def predict_single_image(img_path, model_rpn, model_classifier_only, cfg, class_
 
 def predict(args_):
     path = args_.path
-    with open('config.pickle', 'rb') as f_in:
+    with open('/media/private/Ci/log/plane/frcnn/vgg-adam-18-08-23-1/config.pickle', 'rb') as f_in:
         cfg = pickle.load(f_in)
     cfg.use_horizontal_flips = False
     cfg.use_vertical_flips = False
@@ -152,7 +158,7 @@ def predict(args_):
 
     class_mapping = {v: k for k, v in class_mapping.items()}
     input_shape_img = (None, None, 3)
-    input_shape_features = (None, None, 1024)
+    input_shape_features = (None, None, 512)
 
     img_input = Input(shape=input_shape_img)
     roi_input = Input(shape=(cfg.num_rois, 4))
@@ -169,6 +175,9 @@ def predict(args_):
     model_classifier_only = Model([feature_map_input, roi_input], classifier)
 
     model_classifier = Model([feature_map_input, roi_input], classifier)
+    model_classifier.summary()
+    model_rpn.summary()
+    cfg.model_path='/media/private/Ci/log/plane/frcnn/vgg-adam-18-08-23-1/loss/loss-4.0496-rpnc-3.3445-rpnr-0.4483-cls-0.1388-cr-0.1180.hdf5'
 
     print('Loading weights from {}'.format(cfg.model_path))
     model_rpn.load_weights(cfg.model_path, by_name=True)
@@ -191,7 +200,8 @@ def predict(args_):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--path', '-p', default='images/000010.png', help='image path')
+    parser.add_argument('--path', '-p', default='/media/public/GEOWAY/plane/data/Amsterdam.tif', help='image path')
+    #parser.add_argument('--path', '-p', default='/media/public/GEOWAY/plane/data/Amsterdam.tif', help='image path')
     return parser.parse_args()
 
 

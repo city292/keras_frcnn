@@ -18,7 +18,7 @@ def get_data(input_path):
 
         for line in f:
             line_split = line.strip().split(',')
-            (filename, x1, y1, x2, y2, class_name) = line_split
+            (filename, x1, y1, x2, y2, class_name) = line_split[:6]
 
             if class_name not in classes_count:
                 classes_count[class_name] = 1

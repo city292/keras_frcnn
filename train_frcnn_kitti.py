@@ -8,26 +8,31 @@ import sys
 import time
 import os
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '3'
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 import numpy as np
 import pickle
 from keras import backend as K
-from keras.optimizers import Adam, SGD, RMSprop
+from keras.optimizers import Adam, SGD, RMSprop, adadelta
 from keras.layers import Input
 from keras.models import Model
 from keras_frcnn import config, data_generators
 from keras_frcnn import losses as losses_fn
 import keras_frcnn.roi_helpers as roi_helpers
 from keras.utils import generic_utils
-
+import multiprocessing
 from keras_frcnn import vgg as nn
 from keras_frcnn.simple_parser import get_data
 import tensorflow
 from keras.backend.tensorflow_backend import set_session
-
+import datetime
 configtf = tensorflow.ConfigProto()
 configtf.gpu_options.allow_growth = True
 set_session(tensorflow.Session(config=configtf))
+
+def make_dir(dir):
+    if not os.path.exists(dir):
+        os.mkdir(dir)
+    return
 
 
 def train_kitti():
@@ -42,8 +47,23 @@ def train_kitti():
     # cfg.base_net_weights=r''
 
     # TODO: the only file should to be change for other data to train
-    cfg.model_path = '/media/private/Ci/log/plane/frcnn/model/kitti_frcnn_last.hdf5'
-    cfg.simple_label_file = '/media/public/GEOWAY/plane/plane.csv'
+    cfg.model_path = '/media/private/Ci/log/plane/frcnn/vgg-adam'
+
+    now = datetime.datetime.now()
+    day = now.strftime('%y-%m-%d')
+    for i in range(10000):
+        if not os.path.exists('%s-%s-%d' % (cfg.model_path,day,i)):
+            cfg.model_path = '%s-%s-%d' % (cfg.model_path,day,i)
+            break
+
+    make_dir(cfg.model_path)
+    make_dir(cfg.model_path+'/loss')
+    make_dir(cfg.model_path + '/loss_rpn_cls')
+    make_dir(cfg.model_path + '/loss_rpn_regr')
+    make_dir(cfg.model_path + '/loss_class_cls')
+    make_dir(cfg.model_path + '/loss_class_regr')
+
+    cfg.simple_label_file = '/media/public/GEOWAY/plane/plane0817.csv'
 
     all_images, classes_count, class_mapping = get_data(cfg.simple_label_file)
 
@@ -52,6 +72,7 @@ def train_kitti():
         class_mapping['bg'] = len(class_mapping)
 
     cfg.class_mapping = class_mapping
+    cfg.config_save_file= os.path.join(cfg.model_path,'config.pickle')
     with open(cfg.config_save_file, 'wb') as config_f:
         pickle.dump(cfg, config_f)
         print('Config has been written to {}, and can be loaded when testing to ensure correct results'.format(
@@ -74,6 +95,24 @@ def train_kitti():
                                                    K.image_dim_ordering(), mode='train')
     data_gen_val = data_generators.get_anchor_gt(val_imgs, classes_count, cfg, nn.get_img_output_length,
                                                  K.image_dim_ordering(), mode='val')
+    Q = multiprocessing.Manager().Queue(maxsize=30)
+
+    def fill_Q(n):
+        while True:
+
+            if not Q.full():
+                Q.put(next(data_gen_train))
+                #print(Q.qsize(),'put',n)
+            else:
+                time.sleep(0.00001)
+
+
+    threads=[]
+    for i in range(4):
+        thread= multiprocessing.Process(target=fill_Q,args=(i,))
+        threads.append(thread)
+        thread.start()
+
 
     if K.image_dim_ordering() == 'th':
         input_shape_img = (3, None, None)
@@ -99,7 +138,7 @@ def train_kitti():
     model_all = Model([img_input, roi_input], rpn[:2] + classifier)
     # model_all.summary()
     from keras.utils import plot_model
-    os.environ['PATH'] = os.environ['PATH'] + r';C:\Program Files (x86)\Graphviz2.38\bin;'
+   # os.environ['PATH'] = os.environ['PATH'] + r';C:\Program Files (x86)\Graphviz2.38\bin;'
 
     plot_model(model_all, 'model_all.png', show_layer_names=True, show_shapes=True)
     plot_model(model_classifier, 'model_classifier.png', show_layer_names=True, show_shapes=True)
@@ -115,8 +154,8 @@ def train_kitti():
               'https://github.com/fchollet/keras/tree/master/keras/applications')
     '''
 
-    optimizer = Adam(lr=1e-5)
-    optimizer_classifier = Adam(lr=1e-5)
+    optimizer = adadelta()
+    optimizer_classifier = adadelta()
     model_rpn.compile(optimizer=optimizer,
                       loss=[losses_fn.rpn_loss_cls(num_anchors), losses_fn.rpn_loss_regr(num_anchors)])
     model_classifier.compile(optimizer=optimizer_classifier,
@@ -134,6 +173,10 @@ def train_kitti():
     start_time = time.time()
 
     best_loss = np.Inf
+    best_rpn_cls = np.Inf
+    best_rpn_regr = np.Inf
+    best_class_cls = np.Inf
+    best_class_regr = np.Inf
 
     class_mapping_inv = {v: k for k, v in class_mapping.items()}
     print('Starting training')
@@ -158,9 +201,17 @@ def train_kitti():
                         print('RPN is not producing bounding boxes that overlap'
                               ' the ground truth boxes. Check RPN settings or keep training.')
 
-                X, Y, img_data = next(data_gen_train)
+            #    X, Y, img_data = next(data_gen_train)
+                while True:
 
+                    if Q.empty():
+                        time.sleep(0.00001)
+                        continue
 
+                    X, Y, img_data = Q.get()
+                #    print(Q.qsize(),'get')
+                    break
+              #  print(X.shape,Y.shape)
                 loss_rpn = model_rpn.train_on_batch(X, Y)
 
                 P_rpn = model_rpn.predict_on_batch(X)
@@ -259,14 +310,63 @@ def train_kitti():
                         if cfg.verbose:
                             print('Total loss decreased from {} to {}, saving weights'.format(best_loss, curr_loss))
                         best_loss = curr_loss
-                        model_all.save_weights(cfg.model_path)
+                        model_all.save_weights(
+                            '%s/%s/E-%d-loss-%.4f-rpnc-%.4f-rpnr-%.4f-cls-%.4f-cr-%.4f.hdf5' % (
+                                cfg.model_path,'loss',epoch_num,
+                                curr_loss, loss_rpn_cls, loss_rpn_regr, loss_class_cls,
+                                loss_class_regr)
+                        )
+                    if loss_rpn_cls < best_rpn_cls:
+                        if cfg.verbose:
+                            print('loss_rpn_cls decreased from {} to {}, saving weights'.format(best_rpn_cls, loss_rpn_cls))
+                            best_rpn_cls = loss_rpn_cls
+                        model_all.save_weights(
+
+                            '%s/%s/E-%d-loss-%.4f-rpnc-%.4f-rpnr-%.4f-cls-%.4f-cr-%.4f.hdf5' % (
+                            cfg.model_path, 'loss_rpn_cls',epoch_num,
+                            curr_loss, loss_rpn_cls, loss_rpn_regr, loss_class_cls,
+                            loss_class_regr)
+                        )
+                    if loss_rpn_regr < best_rpn_regr:
+                        if cfg.verbose:
+                            print('loss_rpn_regr decreased from {} to {}, saving weights'.format(best_rpn_regr, loss_rpn_regr))
+                            best_rpn_regr = loss_rpn_regr
+                        model_all.save_weights(
+
+                            '%s/%s/E-%d-loss-%.4f-rpnc-%.4f-rpnr-%.4f-cls-%.4f-cr-%.4f.hdf5' % (
+                            cfg.model_path, 'loss_rpn_regr',epoch_num,
+                            curr_loss, loss_rpn_cls, loss_rpn_regr, loss_class_cls,
+                            loss_class_regr)
+                        )
+                    if loss_class_cls < best_class_cls:
+                        if cfg.verbose:
+                            print('loss_class_cls decreased from {} to {}, saving weights'.format(best_loss, loss_class_cls))
+                            best_class_cls = loss_class_cls
+                        model_all.save_weights(
+
+                            '%s/%s/E-%d-loss-%.4f-rpnc-%.4f-rpnr-%.4f-cls-%.4f-cr-%.4f.hdf5' % (
+                            cfg.model_path, 'loss_class_cls',epoch_num,
+                            curr_loss, loss_rpn_cls, loss_rpn_regr, loss_class_cls,
+                            loss_class_regr)
+                        )
+                    if loss_class_regr < best_class_regr:
+                        if cfg.verbose:
+                            print('loss_class_regr decreased from {} to {}, saving weights'.format(best_loss, loss_class_regr))
+                            best_class_regr = loss_class_regr
+                        model_all.save_weights(
+
+                            '%s/%s/E-%d-loss-%.4f-rpnc-%.4f-rpnr-%.4f-cls-%.4f-cr-%.4f.hdf5' % (
+                            cfg.model_path, 'loss_class_regr',epoch_num,
+                            curr_loss, loss_rpn_cls, loss_rpn_regr, loss_class_cls,
+                            loss_class_regr)
+                        )
 
                     break
 
             except Exception as e:
-                print('Exception: {}'.format(e))
+             #   print('Exception: {}'.format(e))
                 # save model
-                model_all.save_weights(cfg.model_path)
+            #    model_all.save_weights(cfg.model_path)
                 continue
     print('Training complete, exiting.')
 
